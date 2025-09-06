@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+  enableTracing = false
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  password  String
+  name      String
+  role      String    @default("admin") // "admin", "moderator"
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  lastLogin DateTime?
+  Session   Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userAgent String?
+  ipAddress String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Feedback {
+  id          String    @id @default(cuid())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  name        String
+  contact     String?
+  email       String?
+  phone       String?
+  rating      Int?
+  comments    String?
+  location    String?
+  category    String? // e.g., "food", "service", "ambiance", "value"
+  visitDate   DateTime?
+  isAnonymous Boolean   @default(false)
+  tags        String? // JSON array of tags
+  sentiment   String? // "positive", "negative", "neutral"
+  status      String    @default("new") // "new", "reviewed", "resolved", "archived"
+  ipAddress   String? // For security tracking
+  userAgent   String? // For security tracking
+  isVerified  Boolean   @default(false) // Email verification
+  verifiedAt  DateTime?
+
+  @@map("feedback")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String // "create", "update", "delete", "login", "logout"
+  resource   String // "feedback", "user", "session"
+  resourceId String?
+  details    String? // JSON details
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@map("audit_logs")
+}
