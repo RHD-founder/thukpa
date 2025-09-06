@@ -7,6 +7,9 @@
         |-- login
             |-- page.tsx
     |-- api
+        |-- admin
+            |-- security
+                |-- route.ts
         |-- analytics
             |-- route.ts
         |-- auth
@@ -29,9 +32,11 @@
             |-- route.ts
     |-- components
         |-- AnalyticsDashboard.tsx
+        |-- ErrorDisplay.tsx
         |-- FeedbackAnalytics.tsx
         |-- FeedbackForm.tsx
         |-- Header.tsx
+        |-- SecurityPanel.tsx
     |-- dashboard
         |-- dashboard-client.tsx
         |-- page.tsx
@@ -66,6 +71,7 @@
     |-- auth.ts
     |-- csv.ts
     |-- db.ts
+    |-- error-handler.ts
     |-- middleware-auth.ts
     |-- rate-limit.ts
     |-- sanitize.ts

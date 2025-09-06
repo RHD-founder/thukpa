@@ -32,7 +32,7 @@ export async function middleware(request: NextRequest) {
   const deviceFingerprint = generateDeviceFingerprint(request);
 
   // Check if device is blocked
-  if (isDeviceBlocked(deviceFingerprint)) {
+  if (await isDeviceBlocked(deviceFingerprint)) {
     console.log(`🚨 Blocked device attempted access: ${deviceFingerprint}`);
     return NextResponse.json(
       {
@@ -60,7 +60,7 @@ export async function middleware(request: NextRequest) {
   const user = validateAuthCookie(request);
 
   // Detect threats after authentication check
-  const threat = detectThreats(request, user?.id);
+  const threat = await detectThreats(request, user?.id);
   if (threat) {
     console.log(`🚨 Threat detected:`, {
       type: threat.type,

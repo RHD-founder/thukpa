@@ -12,11 +12,13 @@ import {
     Settings,
     CheckCircle,
     AlertCircle,
-    Info
+    Info,
+    Shield
 } from 'lucide-react'
 import { format } from 'date-fns'
 import AnalyticsDashboard from '@/app/components/AnalyticsDashboard'
 import FeedbackAnalytics from '@/app/components/FeedbackAnalytics'
+import SecurityPanel from '@/app/components/SecurityPanel'
 
 interface FeedbackItem {
     id: string
@@ -47,7 +49,7 @@ interface Notification {
 }
 
 export default function DashboardClient() {
-    const [view, setView] = useState<'analytics' | 'table' | 'feedback'>('analytics')
+    const [view, setView] = useState<'analytics' | 'table' | 'feedback' | 'security'>('analytics')
     const [items, setItems] = useState<FeedbackItem[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
@@ -315,6 +317,16 @@ export default function DashboardClient() {
                             <Table className="w-5 h-5 mr-3" />
                             Data Table
                         </button>
+                        <button
+                            onClick={() => setView('security')}
+                            className={`w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${view === 'security'
+                                ? 'bg-gray-100 text-gray-900'
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                }`}
+                        >
+                            <Shield className="w-5 h-5 mr-3" />
+                            Security
+                        </button>
                     </nav>
                 </div>
 
@@ -505,6 +517,8 @@ export default function DashboardClient() {
                         <AnalyticsDashboard />
                     ) : view === 'feedback' ? (
                         <FeedbackAnalytics />
+                    ) : view === 'security' ? (
+                        <SecurityPanel />
                     ) : (
                         <>
                             {/* Filters */}

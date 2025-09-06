@@ -75,3 +75,45 @@ model AuditLog {
 
   @@map("audit_logs")
 }
+
+model BlockedDevice {
+  id                String   @id @default(cuid())
+  deviceFingerprint String   @unique
+  reason            String?
+  blockedAt         DateTime @default(now())
+  blockedBy         String?  // admin user ID
+  isActive          Boolean  @default(true)
+  ipAddress         String?
+  userAgent         String?
+  details           Json?    // Additional blocking details
+
+  @@map("blocked_devices")
+}
+
+model BlockedIP {
+  id        String   @id @default(cuid())
+  ipAddress String   @unique
+  reason    String?
+  blockedAt DateTime @default(now())
+  blockedBy String?  // admin user ID
+  isActive  Boolean  @default(true)
+  details   Json?    // Additional blocking details
+
+  @@map("blocked_ips")
+}
+
+model ThreatEvent {
+  id                String   @id @default(cuid())
+  type              String   // "brute_force", "scraping", "suspicious_pattern", "rate_limit_exceeded"
+  severity          String   // "low", "medium", "high", "critical"
+  deviceFingerprint String
+  ipAddress         String
+  userAgent         String?
+  path              String
+  details           Json     // Threat details
+  blocked           Boolean  @default(false)
+  userId            String?  // Associated user if any
+  createdAt         DateTime @default(now())
+
+  @@map("threat_events")
+}
