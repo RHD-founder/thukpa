@@ -59,6 +59,7 @@
 |-- components.json
 |-- DEPLOYMENT.md
 |-- env.example
+|-- ENV_ANALYSIS.md
 |-- eslint.config.mjs
 |-- lib
     |-- auth-server.ts
@@ -101,3 +102,4 @@
 |-- tsconfig.json
 |-- tsconfig.tsbuildinfo
 |-- vercel.json
+|-- VERCEL_ENV_VARS.md

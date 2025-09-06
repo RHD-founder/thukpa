@@ -32,22 +32,24 @@ export async function GET(req: Request) {
     // Calculate metrics
     const totalFeedback = feedback.length;
     const ratings = feedback
-      .filter((f) => f.rating !== null)
-      .map((f) => f.rating!);
+      .filter((f: { rating: number | null }) => f.rating !== null)
+      .map((f: { rating: number | null }) => f.rating!);
     const averageRating =
       ratings.length > 0
-        ? ratings.reduce((a, b) => a + b, 0) / ratings.length
+        ? ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length
         : 0;
 
     // Rating distribution
     const ratingDistribution = [1, 2, 3, 4, 5].map((rating) => ({
       rating,
-      count: feedback.filter((f) => f.rating === rating).length,
+      count: feedback.filter(
+        (f: { rating: number | null }) => f.rating === rating
+      ).length,
     }));
 
     // Category distribution
     const categoryMap = new Map<string, number>();
-    feedback.forEach((f) => {
+    feedback.forEach((f: { category: string | null }) => {
       const cat = f.category || "uncategorized";
       categoryMap.set(cat, (categoryMap.get(cat) || 0) + 1);
     });
@@ -60,7 +62,7 @@ export async function GET(req: Request) {
 
     // Sentiment distribution
     const sentimentMap = new Map<string, number>();
-    feedback.forEach((f) => {
+    feedback.forEach((f: { sentiment: string | null }) => {
       const sentiment = f.sentiment || "neutral";
       sentimentMap.set(sentiment, (sentimentMap.get(sentiment) || 0) + 1);
     });
@@ -76,7 +78,7 @@ export async function GET(req: Request) {
       string,
       { count: number; totalRating: number; ratingCount: number }
     >();
-    feedback.forEach((f) => {
+    feedback.forEach((f: { createdAt: Date; rating: number | null }) => {
       const date = f.createdAt.toISOString().split("T")[0];
       const existing = dailyMap.get(date) || {
         count: 0,
@@ -105,20 +107,22 @@ export async function GET(req: Request) {
       string,
       { count: number; totalRating: number; ratingCount: number }
     >();
-    feedback.forEach((f) => {
-      const location = f.location || "Unknown";
-      const existing = locationMap.get(location) || {
-        count: 0,
-        totalRating: 0,
-        ratingCount: 0,
-      };
-      existing.count += 1;
-      if (f.rating !== null) {
-        existing.totalRating += f.rating;
-        existing.ratingCount += 1;
+    feedback.forEach(
+      (f: { location: string | null; rating: number | null }) => {
+        const location = f.location || "Unknown";
+        const existing = locationMap.get(location) || {
+          count: 0,
+          totalRating: 0,
+          ratingCount: 0,
+        };
+        existing.count += 1;
+        if (f.rating !== null) {
+          existing.totalRating += f.rating;
+          existing.ratingCount += 1;
+        }
+        locationMap.set(location, existing);
       }
-      locationMap.set(location, existing);
-    });
+    );
 
     const locationStats = Array.from(locationMap.entries())
       .map(([location, data]) => ({
