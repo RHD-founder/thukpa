@@ -101,5 +101,4 @@
 |-- setup.js
 |-- tsconfig.json
 |-- tsconfig.tsbuildinfo
-|-- vercel.json
 |-- VERCEL_ENV_VARS.md
