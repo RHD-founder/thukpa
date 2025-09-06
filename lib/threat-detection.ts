@@ -1,7 +1,5 @@
 import { NextRequest } from "next/server";
-// Temporarily disable database features due to Prisma generation issues
-// import { PrismaClient } from "@prisma/client";
-// const prisma = new PrismaClient();
+import { prisma } from "@/lib/db";
 
 interface ThreatEvent {
   id: string;
@@ -46,23 +44,57 @@ export function generateDeviceFingerprint(request: NextRequest): string {
   const userAgent = request.headers.get("user-agent") ?? "";
   const acceptLanguage = request.headers.get("accept-language") ?? "";
   const acceptEncoding = request.headers.get("accept-encoding") ?? "";
+  const acceptCharset = request.headers.get("accept-charset") ?? "";
+  const accept = request.headers.get("accept") ?? "";
+  const connection = request.headers.get("connection") ?? "";
+  const upgradeInsecureRequests =
+    request.headers.get("upgrade-insecure-requests") ?? "";
+  const secFetchDest = request.headers.get("sec-fetch-dest") ?? "";
+  const secFetchMode = request.headers.get("sec-fetch-mode") ?? "";
+  const secFetchSite = request.headers.get("sec-fetch-site") ?? "";
+  const secFetchUser = request.headers.get("sec-fetch-user") ?? "";
+  const secChUa = request.headers.get("sec-ch-ua") ?? "";
+  const secChUaMobile = request.headers.get("sec-ch-ua-mobile") ?? "";
+  const secChUaPlatform = request.headers.get("sec-ch-ua-platform") ?? "";
+  const dnt = request.headers.get("dnt") ?? "";
+  const viewportWidth = request.headers.get("viewport-width") ?? "";
+  const width = request.headers.get("width") ?? "";
 
   // Extract device info from User-Agent
   const deviceInfo = parseUserAgent(userAgent);
 
+  // Create a more comprehensive fingerprint
   const fingerprint = {
-    userAgent: userAgent.substring(0, 100), // Truncate for consistency
-    acceptLanguage: acceptLanguage.substring(0, 50),
-    acceptEncoding: acceptEncoding.substring(0, 50),
+    userAgent: userAgent.substring(0, 200),
+    acceptLanguage: acceptLanguage.substring(0, 100),
+    acceptEncoding: acceptEncoding.substring(0, 100),
+    acceptCharset: acceptCharset.substring(0, 50),
+    accept: accept.substring(0, 100),
+    connection: connection,
+    upgradeInsecureRequests: upgradeInsecureRequests,
+    secFetchDest: secFetchDest,
+    secFetchMode: secFetchMode,
+    secFetchSite: secFetchSite,
+    secFetchUser: secFetchUser,
+    secChUa: secChUa.substring(0, 200),
+    secChUaMobile: secChUaMobile,
+    secChUaPlatform: secChUaPlatform,
+    dnt: dnt,
+    viewportWidth: viewportWidth,
+    width: width,
     platform: deviceInfo.platform,
     browser: deviceInfo.browser,
     deviceType: deviceInfo.deviceType,
+    // Add timestamp for uniqueness (changes every hour)
+    timeWindow: Math.floor(Date.now() / (60 * 60 * 1000)), // 1 hour windows
   };
 
-  // Create a hash of the fingerprint
-  return Buffer.from(JSON.stringify(fingerprint))
-    .toString("base64")
-    .substring(0, 32);
+  // Create a more secure hash
+  const fingerprintString = JSON.stringify(fingerprint);
+  const hash = Buffer.from(fingerprintString).toString("base64");
+
+  // Return a longer, more unique fingerprint
+  return hash.substring(0, 64);
 }
 
 function parseUserAgent(userAgent: string): {
@@ -128,7 +160,7 @@ export async function detectThreats(
   // Check if device is already blocked
   if (await isDeviceBlocked(deviceFingerprint)) {
     console.log(`🚫 Device already blocked: ${deviceFingerprint}`);
-    return createThreatEvent(
+    return await createThreatEvent(
       "scraping",
       "critical",
       userId,
@@ -144,21 +176,28 @@ export async function detectThreats(
   }
 
   // Detect brute force attacks
-  const bruteForceThreat = detectBruteForce(ip, path, deviceFingerprint);
+  const bruteForceThreat = await detectBruteForce(ip, path, deviceFingerprint);
   if (bruteForceThreat) {
     console.log(`🔍 Brute force threat detected and returned`);
     return bruteForceThreat;
   }
 
   // Detect scraping attempts
-  const scrapingThreat = detectScraping(userAgent, path, deviceFingerprint);
+  const scrapingThreat = await detectScraping(
+    userAgent,
+    path,
+    deviceFingerprint
+  );
   if (scrapingThreat) {
     console.log(`🔍 Scraping threat detected and returned`);
     return scrapingThreat;
   }
 
   // Detect suspicious patterns
-  const suspiciousThreat = detectSuspiciousPatterns(request, deviceFingerprint);
+  const suspiciousThreat = await detectSuspiciousPatterns(
+    request,
+    deviceFingerprint
+  );
   if (suspiciousThreat) {
     console.log(`🔍 Suspicious pattern threat detected and returned`);
     return suspiciousThreat;
@@ -168,27 +207,29 @@ export async function detectThreats(
   return null;
 }
 
-function detectBruteForce(
+async function detectBruteForce(
   ip: string,
   path: string,
   deviceFingerprint?: string
-): ThreatEvent | null {
+): Promise<ThreatEvent | null> {
   if (!path.includes("/admin/login")) return null;
 
   const now = Date.now();
-  const windowMs = 15 * 60 * 1000; // 15 minutes
-  const maxAttempts = 5;
+  const windowMs = 30 * 60 * 1000; // 30 minutes (increased from 15)
+  const maxAttempts = 10; // Increased from 5 to 10
 
-  const ipData = suspiciousIPs.get(ip);
+  // Use device fingerprint as primary key, not IP
+  const key = deviceFingerprint || `ip_${ip}`;
+  const ipData = suspiciousIPs.get(key);
 
   if (!ipData) {
-    suspiciousIPs.set(ip, { count: 1, lastSeen: new Date() });
+    suspiciousIPs.set(key, { count: 1, lastSeen: new Date() });
     return null;
   }
 
   // Reset if outside window
   if (now - ipData.lastSeen.getTime() > windowMs) {
-    suspiciousIPs.set(ip, { count: 1, lastSeen: new Date() });
+    suspiciousIPs.set(key, { count: 1, lastSeen: new Date() });
     return null;
   }
 
@@ -197,7 +238,7 @@ function detectBruteForce(
   ipData.lastSeen = new Date();
 
   if (ipData.count >= maxAttempts) {
-    return createThreatEvent(
+    return await createThreatEvent(
       "brute_force",
       "high",
       undefined,
@@ -207,7 +248,9 @@ function detectBruteForce(
       path,
       {
         attempts: ipData.count,
-        window: "15 minutes",
+        window: "30 minutes",
+        deviceFingerprint: deviceFingerprint,
+        ip: ip,
       }
     );
   }
@@ -215,11 +258,11 @@ function detectBruteForce(
   return null;
 }
 
-function detectScraping(
+async function detectScraping(
   userAgent: string,
   path: string,
   deviceFingerprint: string
-): ThreatEvent | null {
+): Promise<ThreatEvent | null> {
   const suspiciousPatterns = [
     /bot/i,
     /crawler/i,
@@ -240,7 +283,7 @@ function detectScraping(
   );
 
   if (isSuspicious) {
-    return createThreatEvent(
+    return await createThreatEvent(
       "scraping",
       "medium",
       undefined,
@@ -258,10 +301,10 @@ function detectScraping(
   return null;
 }
 
-function detectSuspiciousPatterns(
+async function detectSuspiciousPatterns(
   request: NextRequest,
   deviceFingerprint: string
-): ThreatEvent | null {
+): Promise<ThreatEvent | null> {
   const path = request.nextUrl.pathname;
   const userAgent = request.headers.get("user-agent") ?? "";
 
@@ -270,7 +313,7 @@ function detectSuspiciousPatterns(
   // Detect unusual header patterns
 
   if (path.includes("..") || path.includes("//")) {
-    return createThreatEvent(
+    return await createThreatEvent(
       "suspicious_pattern",
       "medium",
       undefined,
@@ -288,7 +331,7 @@ function detectSuspiciousPatterns(
   return null;
 }
 
-function createThreatEvent(
+async function createThreatEvent(
   type: ThreatEvent["type"],
   severity: ThreatEvent["severity"],
   userId: string | undefined,
@@ -297,7 +340,7 @@ function createThreatEvent(
   deviceFingerprint: string,
   path: string,
   details: Record<string, unknown>
-): ThreatEvent {
+): Promise<ThreatEvent> {
   const threat: ThreatEvent = {
     id: `threat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     type,
@@ -327,6 +370,27 @@ function createThreatEvent(
     threatStoreSize: threatStore.size,
   });
 
+  // Store threat event in database
+  try {
+    await prisma.threatEvent.create({
+      data: {
+        type: threat.type,
+        severity: threat.severity,
+        deviceFingerprint: threat.deviceFingerprint,
+        ipAddress: threat.ip,
+        userAgent: threat.userAgent,
+        path: threat.path,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        details: threat.details as any, // Prisma Json type
+        blocked: threat.blocked,
+        userId: threat.userId,
+      },
+    });
+    console.log(`💾 Threat event stored in database: ${threat.id}`);
+  } catch (error) {
+    console.error("Error storing threat event:", error);
+  }
+
   // Auto-block based on severity and frequency
   if (shouldBlockDevice(deviceFingerprint, threat)) {
     // Don't await here to avoid blocking the response
@@ -343,27 +407,42 @@ function shouldBlockDevice(
 ): boolean {
   const deviceThreats = threatStore.get(deviceFingerprint) || [];
 
-  // Block if critical threat
+  // Only block for CRITICAL threats (like actual hacking attempts)
   if (currentThreat.severity === "critical") {
+    console.log(
+      `🚨 CRITICAL threat detected - blocking device: ${deviceFingerprint}`
+    );
     return true;
   }
 
-  // Block if multiple high-severity threats in short time
-  const recentThreats = deviceThreats.filter(
+  // Block if multiple HIGH-severity threats in very short time (5 minutes)
+  const recentHighThreats = deviceThreats.filter(
     (t) =>
-      Date.now() - t.timestamp.getTime() < 60 * 60 * 1000 && // Last hour
+      Date.now() - t.timestamp.getTime() < 5 * 60 * 1000 && // Last 5 minutes
       t.severity === "high"
   );
 
-  if (recentThreats.length >= 3) {
+  if (recentHighThreats.length >= 5) {
+    // Increased from 3 to 5
+    console.log(
+      `🚨 Multiple high threats in 5 minutes - blocking device: ${deviceFingerprint}`
+    );
     return true;
   }
 
-  // Block if too many threats overall
-  if (deviceThreats.length >= 10) {
+  // Block if way too many threats overall (increased threshold)
+  if (deviceThreats.length >= 20) {
+    // Increased from 10 to 20
+    console.log(
+      `🚨 Too many total threats - blocking device: ${deviceFingerprint}`
+    );
     return true;
   }
 
+  // Don't block for medium/low severity threats
+  console.log(
+    `ℹ️ Threat detected but not blocking: ${currentThreat.severity} severity`
+  );
   return false;
 }
 
@@ -375,23 +454,24 @@ export async function isDeviceBlocked(
     return true;
   }
 
-  // Check database (temporarily disabled)
-  // try {
-  //   const blockedDevice = await prisma.blockedDevice.findFirst({
-  //     where: {
-  //       deviceFingerprint,
-  //       isActive: true,
-  //     },
-  //   });
+  // Check database
+  try {
+    const blockedDevice = await prisma.blockedDevice.findFirst({
+      where: {
+        deviceFingerprint,
+        isActive: true,
+      },
+    });
 
-  //   if (blockedDevice) {
-  //     // Add to in-memory cache
-  //     blockedDevices.add(deviceFingerprint);
-  //     return true;
-  //   }
-  // } catch (error) {
-  //   console.error("Error checking blocked device:", error);
-  // }
+    if (blockedDevice) {
+      // Add to in-memory cache
+      blockedDevices.add(deviceFingerprint);
+      console.log(`🚫 Device found blocked in database: ${deviceFingerprint}`);
+      return true;
+    }
+  } catch (error) {
+    console.error("Error checking blocked device:", error);
+  }
 
   return false;
 }
@@ -508,7 +588,7 @@ export async function getThreatStats(): Promise<{
   }>;
 }> {
   // Get threats from database
-  const dbThreats: Array<{
+  let dbThreats: Array<{
     id: string;
     type: string;
     severity: string;
@@ -517,36 +597,41 @@ export async function getThreatStats(): Promise<{
     userAgent: string | null;
     deviceFingerprint: string;
     path: string;
-    details: Record<string, unknown>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    details: any; // Prisma JsonValue type
     blocked: boolean;
     createdAt: Date;
   }> = [];
-  const dbBlockedDevices = 0;
+  let dbBlockedDevices = 0;
 
-  // Database queries temporarily disabled
-  // try {
-  //   // Get recent threats from database
-  //   dbThreats = await prisma.threatEvent.findMany({
-  //     where: {
-  //       createdAt: {
-  //         gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
-  //       },
-  //     },
-  //     orderBy: {
-  //       createdAt: "desc",
-  //     },
-  //   });
+  // Database queries
+  try {
+    // Get recent threats from database
+    dbThreats = await prisma.threatEvent.findMany({
+      where: {
+        createdAt: {
+          gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
 
-  //   // Get active blocked devices from database
-  //   const blockedDevicesResult = await prisma.blockedDevice.count({
-  //     where: {
-  //       isActive: true,
-  //     },
-  //   });
-  //   dbBlockedDevices = blockedDevicesResult;
-  // } catch (error) {
-  //   console.error("Error fetching threat stats from database:", error);
-  // }
+    // Get active blocked devices from database
+    const blockedDevicesResult = await prisma.blockedDevice.count({
+      where: {
+        isActive: true,
+      },
+    });
+    dbBlockedDevices = blockedDevicesResult;
+
+    console.log(
+      `📊 Database stats: ${dbThreats.length} threats, ${dbBlockedDevices} blocked devices`
+    );
+  } catch (error) {
+    console.error("Error fetching threat stats from database:", error);
+  }
 
   // Combine with in-memory data
   const allThreats: ThreatEvent[] = [];
@@ -563,7 +648,7 @@ export async function getThreatStats(): Promise<{
     deviceFingerprint: t.deviceFingerprint,
     timestamp: t.createdAt,
     path: t.path,
-    details: t.details as Record<string, unknown>,
+    details: (t.details as Record<string, unknown>) || {},
     blocked: t.blocked,
   }));
 
@@ -629,25 +714,26 @@ export async function unblockDevice(
   deviceFingerprint: string
 ): Promise<boolean> {
   try {
-    // Database update temporarily disabled
-    // const result = await prisma.blockedDevice.updateMany({
-    //   where: {
-    //     deviceFingerprint,
-    //     isActive: true,
-    //   },
-    //   data: {
-    //     isActive: false,
-    //   },
-    // });
+    // Update database
+    const result = await prisma.blockedDevice.updateMany({
+      where: {
+        deviceFingerprint,
+        isActive: true,
+      },
+      data: {
+        isActive: false,
+      },
+    });
 
     // Remove from in-memory cache
     const removed = blockedDevices.delete(deviceFingerprint);
 
     console.log(`🔓 Device unblocked: ${deviceFingerprint}`, {
+      databaseUpdated: result.count,
       inMemoryRemoved: removed,
     });
 
-    return removed;
+    return result.count > 0 || removed;
   } catch (error) {
     console.error("Error unblocking device:", error);
     // Fallback to in-memory only
@@ -658,20 +744,23 @@ export async function unblockDevice(
 export async function blockDevice(
   deviceFingerprint: string,
   threat: ThreatEvent,
-  _blockedBy?: string
+  blockedBy?: string
 ): Promise<void> {
   try {
-    // Database creation temporarily disabled
-    // await prisma.blockedDevice.create({
-    //   data: {
-    //     deviceFingerprint,
-    //     reason: threat.details?.reason || "Automatic block due to threat",
-    //     blockedBy,
-    //     ipAddress: threat.ip,
-    //     userAgent: threat.userAgent,
-    //     details: threat.details,
-    //   },
-    // });
+    // Create in database
+    await prisma.blockedDevice.create({
+      data: {
+        deviceFingerprint,
+        reason:
+          ((threat.details as Record<string, unknown>)?.reason as string) ||
+          "Automatic block due to threat",
+        blockedBy,
+        ipAddress: threat.ip,
+        userAgent: threat.userAgent,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        details: threat.details as any,
+      },
+    });
 
     // Add to in-memory cache
     blockedDevices.add(deviceFingerprint);
@@ -679,10 +768,12 @@ export async function blockDevice(
     console.log(`🚨 DEVICE BLOCKED: ${deviceFingerprint}`, {
       reason: threat.details,
       timestamp: new Date().toISOString(),
+      databaseStored: true,
     });
   } catch (error) {
     console.error("Error blocking device:", error);
     // Fallback to in-memory only
     blockedDevices.add(deviceFingerprint);
+    console.log(`🚨 DEVICE BLOCKED (in-memory only): ${deviceFingerprint}`);
   }
 }

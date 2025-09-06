@@ -59,26 +59,32 @@ export async function middleware(request: NextRequest) {
   const userIsAuthenticated = isAuthenticated(request);
   const user = validateAuthCookie(request);
 
-  // Detect threats after authentication check
-  const threat = await detectThreats(request, user?.id);
-  if (threat) {
-    console.log(`🚨 Threat detected:`, {
-      type: threat.type,
-      severity: threat.severity,
-      device: deviceFingerprint,
-      ip: threat.ip,
-      path: pathname,
-    });
+  // Only detect threats for admin login attempts and suspicious paths
+  if (
+    pathname === "/admin/login" ||
+    pathname.includes("..") ||
+    pathname.includes("//")
+  ) {
+    const threat = await detectThreats(request, user?.id);
+    if (threat) {
+      console.log(`🚨 Threat detected:`, {
+        type: threat.type,
+        severity: threat.severity,
+        device: deviceFingerprint,
+        ip: threat.ip,
+        path: pathname,
+      });
 
-    // If critical threat, block immediately
-    if (threat.severity === "critical" || threat.blocked) {
-      return NextResponse.json(
-        {
-          error: "Access denied due to suspicious activity.",
-          code: "THREAT_DETECTED",
-        },
-        { status: 403 }
-      );
+      // If critical threat, block immediately
+      if (threat.severity === "critical" || threat.blocked) {
+        return NextResponse.json(
+          {
+            error: "Access denied due to suspicious activity.",
+            code: "THREAT_DETECTED",
+          },
+          { status: 403 }
+        );
+      }
     }
   }
 

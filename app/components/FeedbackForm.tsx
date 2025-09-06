@@ -147,7 +147,7 @@ export default function FeedbackForm() {
                         <Input
                             id="location"
                             name="location"
-                            placeholder="Restaurant name or location"
+                            placeholder="Where are you from?"
                             className="w-full"
                         />
                     </div>

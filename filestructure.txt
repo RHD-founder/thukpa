@@ -50,6 +50,7 @@
     |-- robots.ts
     |-- sitemap.ts
     |-- test-auth
+|-- clear-blocks.js
 |-- components
     |-- ui
         |-- alert.tsx
