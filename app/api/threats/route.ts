@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getThreatStats } from "@/lib/threat-detection";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     console.log("📊 API: Fetching threat stats...");
-    const stats = getThreatStats();
+    const stats = await getThreatStats();
     console.log("📊 API: Threat stats retrieved:", {
       totalThreats: stats.totalThreats,
       blockedDevices: stats.blockedDevices,
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     if (action === "unblock" && deviceFingerprint) {
       const { unblockDevice } = await import("@/lib/threat-detection");
-      const success = unblockDevice(deviceFingerprint);
+      const success = await unblockDevice(deviceFingerprint);
 
       if (success) {
         return NextResponse.json({ message: "Device unblocked successfully" });

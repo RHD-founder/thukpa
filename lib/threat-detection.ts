@@ -658,7 +658,7 @@ export async function unblockDevice(
 export async function blockDevice(
   deviceFingerprint: string,
   threat: ThreatEvent,
-  blockedBy?: string
+  _blockedBy?: string
 ): Promise<void> {
   try {
     // Database creation temporarily disabled

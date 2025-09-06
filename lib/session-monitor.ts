@@ -35,7 +35,7 @@ export function detectSuspiciousActivity(
   userId: string
 ): boolean {
   const userAgent = request.headers.get("user-agent") ?? "";
-  const ip = request.headers.get("x-forwarded-for") ?? "unknown";
+  const _ip = request.headers.get("x-forwarded-for") ?? "unknown";
 
   // Check for suspicious patterns
   const suspiciousPatterns = [

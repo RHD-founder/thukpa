@@ -26,7 +26,7 @@ export default function ErrorDisplay({
     const errorMessage = getErrorMessage(error);
     const errorDetails = getErrorDetails(error);
     const errorIcon = getErrorIcon(error);
-    const errorColor = getErrorColor(error);
+    const _errorColor = getErrorColor(error);
     const canRetry = isRetryableError(error) && onRetry;
 
     return (
